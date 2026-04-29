@@ -147,27 +147,31 @@ export const loginStaff = async (req, res) => {
 export const checkStatus = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email)
-      return res.status(400).json({ message: "Provide email" });
+    if (!email) return res.status(400).json({ message: "Provide email" });
     const student = await Student.findOne({ email });
-    if (!student)
-      return res.status(404).json({ message: "Student not found" });
-    res.status(200).json({ verified: student.isverified , fullname: student.fullname , grade: student.grade });
+    if (!student) return res.status(404).json({ message: "Student not found" });
+    res.status(200).json({
+      verified: student.isverified,
+      fullname: student.fullname,
+      grade: student.grade,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
-
 export const protect = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) return res.status(401).json({ message: "Not authenticated" });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await Staff.findById(decoded.id);
-    if (!req.user)
+
+    let user =
+      (await Staff.findById(decoded.id)) || (await Parent.findById(decoded.id));
+    if (!user)
       return res.status(401).json({ message: "User no longer exists" });
 
+    req.user = user;
     next();
   } catch (err) {
     res.status(401).json({ message: "Invalid token" });
@@ -177,7 +181,9 @@ export const protect = async (req, res, next) => {
 export const restrict = (role) => {
   return (req, res, next) => {
     if (req.user.role !== role) {
-      return res.status(403).json({ message: "You are not authorized to perform this action" });
+      return res
+        .status(403)
+        .json({ message: "You are not authorized to perform this action" });
     }
     next();
   };
@@ -186,11 +192,9 @@ export const restrict = (role) => {
 export const verifyUser = async (req, res) => {
   try {
     const { userId } = req.body;
-    if (!userId)
-      return res.status(400).json({ message: "Provide user ID" });
+    if (!userId) return res.status(400).json({ message: "Provide user ID" });
     const student = await Student.findById(userId);
-    if (!student)
-      return res.status(404).json({ message: "Student not found" });
+    if (!student) return res.status(404).json({ message: "Student not found" });
     student.isverified = true;
     await student.save({ validateBeforeSave: false });
     res.status(200).json({ message: "User verified successfully" });
@@ -206,4 +210,47 @@ export const getAllStudents = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-}
+};
+
+export const linkStudentParent = async (req, res) => {
+  try {
+    const { studentEmail, parentEmail } = req.body;
+    console.log(studentEmail, parentEmail);
+
+    const student = await Student.findOne({ email: studentEmail });
+    if (!student) return res.status(404).json({ message: "Student not found" });
+
+    const parent = await Parent.findOne({ email: parentEmail });
+    if (!parent) return res.status(404).json({ message: "Parent not found" });
+
+    // Avoid duplicates
+    if (!student.parents.includes(parent._id)) {
+      student.parents.push(parent._id);
+      await student.save({ validateBeforeSave: false });
+    }
+    if (!parent.students.includes(student._id)) {
+      parent.students.push(student._id);
+      await parent.save({ validateBeforeSave: false });
+    }
+
+    res.status(200).json({
+      message: "Linked successfully",
+      student: student.fullname,
+      parent: parent.fullname,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+export const getParentStudents = async (req, res) => {
+  try {
+    const parent = await Parent.findById(req.user.id).populate(
+      "students",
+      "fullname grade email phone dob isverified createdAt",
+    );
+    console.log(parent.students);
+    res.status(200).json({ data: parent.students });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

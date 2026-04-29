@@ -11,6 +11,8 @@ import {
   verifyUser,
   getAllStudents,
   protect,
+  linkStudentParent,
+  getParentStudents,
 } from "../controllers/authcontroller.js";
 
 const router = express.Router();
@@ -26,6 +28,8 @@ router.post("/staff/login", loginStaff);
 
 router.post("/check-status", checkStatus)
 router.post("/verify-user",protect, restrict('admin'), verifyUser)
-router.get("/students",protect, restrict('admin'), getAllStudents)
+router.get("/students", protect, restrict('admin'), getAllStudents)
 
+router.post("/link", protect, linkStudentParent);
+router.get("/parent/students", protect, getParentStudents);
 export default router;
